@@ -1,0 +1,101 @@
+version: 2
+
+project_name: go-audit
+
+before:
+  hooks:
+    - go mod download
+
+# A tag with a semver pre-release part (v2.0.0-rc.1) is published as a pre-release
+release:
+  prerelease: auto
+
+env:
+  - CGO_ENABLED=0
+
+builds:
+  - id: go-audit
+    main: ./cmd/go-audit
+    binary: go-audit
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/yousysadmin/go-audit/pkg.Version={{ .Version }}
+
+archives:
+  - ids: [go-audit]
+    name_template: >-
+      {{ .Binary }}_v{{ .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - go-audit.example.yaml
+      - examples/go-audit.yaml
+      - contrib/systemd.go-audit.service
+      - contrib/logrotate.go-audit.conf
+      - README.md
+      - LICENSE
+
+nfpms:
+  - id: go-audit
+    ids: [go-audit]
+    package_name: go-audit
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: YouSysAdmin
+    homepage: https://github.com/yousysadmin/go-audit
+    maintainer: YouSysAdmin <yousysadmin@users.noreply.github.com>
+    description: go-audit is an alternative to the auditd daemon that ships with many distros.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    # auditctl is used to install the rules, the auditd service itself conflicts
+    overrides:
+      deb:
+        dependencies:
+          - auditd
+      rpm:
+        dependencies:
+          - audit
+    contents:
+      - src: go-audit.example.yaml
+        dst: /etc/go-audit.example.yaml
+        file_info:
+          mode: 0644
+      - src: contrib/logrotate.go-audit.conf
+        dst: /etc/logrotate.d/go-audit
+        type: config|noreplace
+        file_info:
+          mode: 0644
+      - src: contrib/systemd.go-audit.service
+        dst: /usr/lib/systemd/system/go-audit.service
+        file_info:
+          mode: 0644
+      - dst: /var/log/go-audit
+        type: dir
+        file_info:
+          mode: 0750
+    scripts:
+      postinstall: contrib/packaging/postinstall.sh
+      preremove: contrib/packaging/preremove.sh
+
+checksum:
+  name_template: "checksums.sha256"
+
+snapshot:
+  # .Version, not .Tag, the archive template adds the leading v
+  version_template: "{{ .Version }}-devel"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

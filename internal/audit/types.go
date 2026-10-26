@@ -1,0 +1,55 @@
+package audit
+
+import "strconv"
+
+// typeNames are the record type names from include/uapi/linux/audit.h and libaudit.
+var typeNames = map[uint16]string{
+	1006: "LOGIN",
+	1100: "USER_AUTH", 1101: "USER_ACCT", 1102: "USER_MGMT", 1103: "CRED_ACQ",
+	1104: "CRED_DISP", 1105: "USER_START", 1106: "USER_END", 1107: "USER_AVC",
+	1108: "USER_CHAUTHTOK", 1109: "USER_ERR", 1110: "CRED_REFR", 1111: "USYS_CONFIG",
+	1112: "USER_LOGIN", 1113: "USER_LOGOUT", 1114: "ADD_USER", 1115: "DEL_USER",
+	1116: "ADD_GROUP", 1117: "DEL_GROUP", 1118: "DAC_CHECK", 1119: "CHGRP_ID",
+	1120: "TEST", 1121: "TRUSTED_APP", 1122: "USER_SELINUX_ERR", 1123: "USER_CMD",
+	1124: "USER_TTY", 1125: "CHUSER_ID", 1126: "GRP_AUTH", 1127: "SYSTEM_BOOT",
+	1128: "SYSTEM_SHUTDOWN", 1129: "SYSTEM_RUNLEVEL", 1130: "SERVICE_START",
+	1131: "SERVICE_STOP", 1132: "GRP_MGMT", 1133: "GRP_CHAUTHTOK", 1134: "MAC_CHECK",
+	1135: "ACCT_LOCK", 1136: "ACCT_UNLOCK", 1137: "USER_DEVICE", 1138: "SOFTWARE_UPDATE",
+	1300: "SYSCALL", 1301: "FS_WATCH", 1302: "PATH", 1303: "IPC", 1304: "SOCKETCALL",
+	1305: "CONFIG_CHANGE", 1306: "SOCKADDR", 1307: "CWD", 1309: "EXECVE",
+	1311: "IPC_SET_PERM", 1312: "MQ_OPEN", 1313: "MQ_SENDRECV", 1314: "MQ_NOTIFY",
+	1315: "MQ_GETSETATTR", 1316: "KERNEL_OTHER", 1317: "FD_PAIR", 1318: "OBJ_PID",
+	1319: "TTY", 1320: "EOE", 1321: "BPRM_FCAPS", 1322: "CAPSET", 1323: "MMAP",
+	1324: "NETFILTER_PKT", 1325: "NETFILTER_CFG", 1326: "SECCOMP", 1327: "PROCTITLE",
+	1328: "FEATURE_CHANGE", 1329: "REPLACE", 1330: "KERN_MODULE", 1331: "FANOTIFY",
+	1332: "TIME_INJOFFSET", 1333: "TIME_ADJNTPVAL", 1334: "BPF", 1335: "EVENT_LISTENER",
+	1336: "URINGOP", 1337: "OPENAT2", 1338: "DM_CTRL", 1339: "DM_EVENT",
+	1400: "AVC", 1401: "SELINUX_ERR", 1402: "AVC_PATH",
+	1700: "ANOM_PROMISCUOUS", 1701: "ANOM_ABEND", 1702: "ANOM_LINK", 1703: "ANOM_CREAT",
+}
+
+// typeIDs is typeNames reversed.
+var typeIDs = func() map[string]uint16 {
+	m := make(map[string]uint16, len(typeNames))
+	for id, name := range typeNames {
+		m[name] = id
+	}
+
+	return m
+}()
+
+// TypeID returns the record type for a name such as USER_END.
+func TypeID(name string) (uint16, bool) {
+	id, ok := typeIDs[name]
+
+	return id, ok
+}
+
+// TypeName returns the record type name, UNKNOWN[n] when it is not known.
+func TypeName(t uint16) string {
+	if name, ok := typeNames[t]; ok {
+		return name
+	}
+
+	return "UNKNOWN[" + strconv.Itoa(int(t)) + "]"
+}

@@ -1,0 +1,124 @@
+# go-audit configuration, every option with its default value.
+# Copy it to /etc/go-audit.yaml and run: go-audit --config /etc/go-audit.yaml
+# See examples/go-audit.yaml for a server profile with a full rule set.
+
+# Where audit events go. Exactly one output must be enabled.
+# Each event is one JSON line, see the README for the format.
+output:
+  # Standard output, for containers or a supervisor that collects stdout.
+  # logging.output must not be stdout with this output.
+  stdout:
+    enabled: true
+    # Tries per event, go-audit waits 1 second between tries and exits when
+    # all of them fail
+    attempts: 3
+
+  # A local file, reopened on SIGUSR1 so logrotate can move it away.
+  # The file is created when missing, the directory must exist.
+  file:
+    enabled: false
+    attempts: 3
+    path: /var/log/go-audit/go-audit.log
+    # Octal, keep the leading 0
+    mode: 0600
+    user: root
+    group: root
+
+  # A syslog daemon.
+  syslog:
+    enabled: false
+    attempts: 3
+    # Leave network and address empty for the local daemon, go-audit then
+    # tries /dev/log, /var/run/syslog and /var/run/log.
+    # For a remote one: network tcp or udp, address host:port.
+    network: ""
+    address: ""
+    # facility * 8 + severity. 132 is local0 (16) and warning (4).
+    priority: 132
+    tag: go-audit
+
+event:
+  # Add "host" with the system hostname
+  host: true
+  # Keep the unparsed text of every record in records[].raw, for debugging
+  raw: false
+
+# Key value pairs added to every event as "tags", none by default.
+# ${VAR} in a value is replaced from the environment at startup and a tag
+# that ends up empty is left out. Keys are lowercased by the config loader.
+tags: {}
+#  env: prod
+#  dc: ${DATACENTER}
+
+# auditctl rules, applied in order at startup after the existing rules are
+# flushed with auditctl -D. At least one rule is required.
+rules:
+  # Every program execution, 64 and 32 bit
+  - -a always,exit -F arch=b64 -S execve
+  - -a always,exit -F arch=b32 -S execve
+  # Enable auditing, needed unless the kernel was booted with audit=1.
+  # -e 2 also locks the rules until reboot, keep it last.
+  - -e 1
+
+# Drop events go-audit should not write, when audit rules alone cannot express it.
+# None by default. Each filter has three parts:
+#   syscall: a name such as bind, or a number, which differs per architecture.
+#     Leave it out to match events without a SYSCALL record, such as the
+#     USER_* records of PAM.
+#   message_type: the record type whose raw text is tested, a name such as
+#     SOCKADDR or a number such as 1306. Leave it out to test every record.
+#   regex: tested against the raw record text, saddr is hex encoded.
+filters:
+  # bind on netlink (family 1000) and IPv6 (0A00) sockets
+  - syscall: bind
+    message_type: SOCKADDR
+    regex: saddr=(10..|0A..)
+  # With events.min at 1100, the PAM records of every cron job:
+  # - regex: terminal=cron
+
+extras:
+  # Adds "cgroup", the cgroup v2 path of the process
+  # (the v1 pids controller path on older systems).
+  cgroups:
+    enabled: false
+
+  # Adds "container.id", read from the cgroup path of the process.
+  # No container runtime is queried.
+  containers:
+    enabled: false
+    # pid -> container id lookups to keep, 0 disables the cache
+    pid_cache: 0
+
+# go-audit's own log lines, not the audit events.
+logging:
+  # trace, debug, info, warn or error
+  level: info
+  # json for anything that ships logs somewhere, text for a terminal
+  format: json
+  # stderr, stdout or a file path
+  output: stderr
+  # Colored text, only applied when the output is a terminal
+  color: false
+
+# Tuning, the defaults suit most hosts.
+
+# Netlink receive buffer in bytes, 0 keeps the system default
+# (net.core.rmem_default). The kernel caps it at net.core.rmem_max.
+# Raise it when the logs show "no buffer space available".
+socket_buffer:
+  receive: 0
+
+# Range of record types to keep, others are dropped. 1300 to 1399 are the
+# kernel syscall records. Keep 1320 (EOE) in the range, it closes an event
+# right away instead of after 2 seconds.
+events:
+  min: 1300
+  max: 1399
+
+# Sequence numbers are consecutive, a gap means the kernel dropped events.
+message_tracking:
+  enabled: true
+  # Log records that arrive late, a sign of an overloaded system
+  log_out_of_order: false
+  # How far behind a missing sequence may be before it is logged as lost
+  max_out_of_order: 500
