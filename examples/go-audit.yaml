@@ -1,0 +1,108 @@
+# Server profile: events go to a file that Fluent Bit (or any shipper) tails,
+# go-audit's own logs go to stderr as JSON and end up in journald.
+#
+# The rules follow the usual CIS style set. Trim what you do not need,
+# every rule costs CPU in the kernel and lines in the log.
+#
+# Install: sudo cp examples/go-audit.yaml /etc/go-audit.yaml
+# The matching systemd unit is examples/go-audit.service.
+
+output:
+  file:
+    enabled: true
+    attempts: 2
+    path: /var/log/go-audit/go-audit.log
+    mode: 0600
+    user: root
+    group: root
+
+# Added to every event. The unit reads the variables from /etc/default/go-audit
+# (Debian, Ubuntu) or /etc/sysconfig/go-audit (RHEL), for example:
+#   ENV=prod
+#   DATACENTER=fra1
+tags:
+  env: ${ENV}
+  dc: ${DATACENTER}
+
+event:
+  host: true
+
+logging:
+  level: info
+  format: json
+  output: stderr
+
+# Bigger than the default, bursts of execve on busy hosts overflow small buffers.
+# The kernel caps it at net.core.rmem_max.
+socket_buffer:
+  receive: 8388608
+
+message_tracking:
+  enabled: true
+  log_out_of_order: false
+  max_out_of_order: 500
+
+extras:
+  cgroups:
+    enabled: true
+  containers:
+    enabled: true
+    pid_cache: 1024
+
+# File watches use -w. auditctl 4 suggests -F arch=b64 -F path= -F perm= instead,
+# but on arm64 it expands perm into syscalls arm64 does not have and refuses the rule.
+# -w loads on every architecture, auditctl only prints a "slower" warning.
+rules:
+  # Kernel backlog for bursts, raise it if `lost` grows in `auditctl -s`
+  - -b 8192
+
+  # Changes to users, groups and passwords
+  - -w /etc/passwd -p wa -k identity
+  - -w /etc/group -p wa -k identity
+  - -w /etc/shadow -p wa -k identity
+  - -w /etc/gshadow -p wa -k identity
+
+  # Privilege escalation config
+  - -w /etc/sudoers -p wa -k sudoers
+  - -w /etc/sudoers.d/ -p wa -k sudoers
+
+  # SSH server config
+  - -w /etc/ssh/sshd_config -p wa -k sshd
+  - -w /etc/ssh/sshd_config.d/ -p wa -k sshd
+
+  # The audit setup itself
+  - -w /etc/go-audit.yaml -p wa -k audit-config
+  - -w /sbin/auditctl -p x -k audit-tools
+
+  # Kernel module loading and unloading
+  - -a always,exit -F arch=b64 -S init_module -S finit_module -S delete_module -k modules
+
+  # Clock changes
+  - -a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change
+  - -w /etc/localtime -p wa -k time-change
+
+  # Mounts by logged in users
+  - -a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=unset -k mounts
+
+  # Every command run by a logged in user, daemons and cron (auid unset) are skipped
+  - -a always,exit -F arch=b64 -S execve -F auid!=unset -k user-commands
+  - -a always,exit -F arch=b32 -S execve -F auid!=unset -k user-commands
+
+  # File access denied to logged in users.
+  # openat only, arm64 has no open syscall. On x86_64 add -S open to catch old static binaries.
+  - -a always,exit -F arch=b64 -S openat -F exit=-EACCES -F auid>=1000 -F auid!=unset -k access
+  - -a always,exit -F arch=b64 -S openat -F exit=-EPERM -F auid>=1000 -F auid!=unset -k access
+
+  # Outgoing connections and listening sockets
+  - -a always,exit -F arch=b64 -S connect -k network
+  - -a always,exit -F arch=b64 -S listen -k network
+
+  # Enable auditing. Use -e 2 instead to lock the rules until reboot.
+  - -e 1
+
+filters:
+  # Drop connects to 127.x.x.x and to unix sockets, they are most of the network noise.
+  # saddr is hex: 0200 is AF_INET followed by the port, 01 is AF_UNIX.
+  - syscall: connect
+    message_type: 1306
+    regex: saddr=(0200....7F|01)

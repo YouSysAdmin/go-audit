@@ -1,0 +1,117 @@
+# Run `task` with no arguments for the list. Install go-task from
+# https://taskfile.dev
+version: '3'
+
+vars:
+  VERSION:
+    sh: 'echo "${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo devel)}"'
+  LDFLAGS: '-s -w -X github.com/yousysadmin/go-audit/pkg.Version={{.VERSION}}'
+  PKG: ./cmd/go-audit
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build a static bin/go-audit for Linux on the host CPU architecture
+    env:
+      GOOS: linux
+      CGO_ENABLED: '0'
+    cmds:
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/go-audit {{.PKG}}
+
+  release-check:
+    desc: Validate .goreleaser.yml
+    cmds:
+      - goreleaser check
+
+  release-snapshot:
+    desc: Local goreleaser build of archives and deb/rpm packages into dist/, nothing is published
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  generate:
+    desc: Regenerate the syscall name tables from golang.org/x/sys
+    cmds:
+      - go generate ./internal/syscalls
+
+  test:
+    desc: Go tests with the race detector (Linux only, the code uses netlink)
+    cmds:
+      - go test -race ./...
+
+  cover:
+    desc: Run the tests and open the coverage report
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out
+
+  bench:
+    desc: Run the benchmarks
+    cmds:
+      - go test -run xxx -bench=. ./...
+
+  bench-cpu:
+    desc: Profile the event path, BENCHTIME=60s for a long run
+    vars:
+      BENCHTIME: '{{.BENCHTIME | default "5s"}}'
+    cmds:
+      - go test -run xxx -bench=. -benchtime={{.BENCHTIME}} -cpuprofile=cpu.pprof -o audit.test ./internal/audit
+      - go tool pprof audit.test cpu.pprof
+
+  # The code is Linux only, GOOS lets vet and lint run from macOS too
+  vet:
+    desc: go vet
+    env:
+      GOOS: linux
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Fail on unformatted Go files
+    cmds:
+      - cmd: |
+          files="$(gofmt -l cmd internal pkg)"
+          if [ -n "$files" ]; then
+            echo "gofmt:"
+            echo "$files"
+            exit 1
+          fi
+        silent: true
+
+  lint:
+    desc: golangci-lint
+    env:
+      GOOS: linux
+    cmds:
+      - golangci-lint run ./...
+
+  check:
+    desc: fmt, vet, lint and tests
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: test
+
+  # Installed for the host first, so the scan itself can target Linux
+  vulncheck:
+    desc: govulncheck against the Linux build
+    cmds:
+      - GOBIN="$PWD/bin" go install golang.org/x/vuln/cmd/govulncheck@latest
+      - GOOS=linux bin/govulncheck ./...
+
+  modernize:
+    desc: Show the go fix modernizations that would apply
+    env:
+      GOOS: linux
+    cmds:
+      - go fix -diff ./...
+
+  clean:
+    desc: Remove build outputs
+    cmds:
+      - rm -rf bin dist coverage.out cpu.pprof audit.test

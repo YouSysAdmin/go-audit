@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="512" height="512">
+<title>go-audit</title>
+<defs>
+<linearGradient id="tile" x1="2.5" y1="2.5" x2="29.5" y2="29.5" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#dd5309"/>
+<stop offset="0.55" stop-color="#e11d48"/>
+<stop offset="1" stop-color="#c026d3"/>
+</linearGradient>
+</defs>
+<rect x="2.5" y="2.5" width="27" height="27" rx="7" fill="url(#tile)"/>
+<circle cx="14.375" cy="14.375" r="6" fill="none" stroke="#ffffff" stroke-width="2.25"/>
+<path d="M19.413 19.413L23.375 23.375" fill="none" stroke="#ffffff" stroke-width="2.75" stroke-linecap="round"/>
+<path d="M11.625 12.625h5.5M11.625 16.125h3" fill="none" stroke="#ffffff" stroke-width="1.75" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="512" height="512">
+<title>go-audit</title>
+<rect x="2.5" y="2.5" width="27" height="27" rx="7" fill="none" stroke="#fafafa" stroke-width="1.75"/>
+<circle cx="14.375" cy="14.375" r="6" fill="none" stroke="#fafafa" stroke-width="2.25"/>
+<path d="M19.413 19.413L23.375 23.375" fill="none" stroke="#fafafa" stroke-width="2.75" stroke-linecap="round"/>
+<path d="M11.625 12.625h5.5M11.625 16.125h3" fill="none" stroke="#fafafa" stroke-width="1.75" stroke-linecap="round"/>
+</svg>

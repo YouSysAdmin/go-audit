@@ -1,0 +1,43 @@
+# /usr/lib/systemd/system/go-audit.service
+[Unit]
+Description=go-audit, kernel audit events as JSON
+Documentation=https://github.com/yousysadmin/go-audit
+After=network.target
+# Only one process can be the audit daemon
+Conflicts=auditd.service
+
+[Service]
+Type=simple
+# Values for ${VAR} in tags, for example DATACENTER=fra1
+EnvironmentFile=-/etc/default/go-audit
+EnvironmentFile=-/etc/sysconfig/go-audit
+ExecStart=/usr/local/bin/go-audit --config /etc/go-audit.yaml
+Restart=on-failure
+RestartSec=5
+
+# Sandboxing. go-audit runs as root because it installs rules with auditctl.
+# ProtectHome and PrivateTmp are left out on purpose: auditctl resolves -w
+# paths in this mount namespace, a hidden /home or /tmp breaks those watches.
+# ProtectProc is left out too, the cgroup and container extras read other
+# processes in /proc.
+CapabilityBoundingSet=CAP_AUDIT_CONTROL CAP_AUDIT_READ CAP_CHOWN CAP_DAC_OVERRIDE
+NoNewPrivileges=yes
+ProtectSystem=strict
+# Add the directory of a custom output.file.path or logging.output here
+ReadWritePaths=/var/log/go-audit
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_NETLINK AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
